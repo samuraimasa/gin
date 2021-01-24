@@ -1,0 +1,59 @@
+version: "3.8"
+
+services:
+  postgres:
+    image: postgres:11
+    environment:
+      TZ: Asia/Tokyo
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - 5432:5432
+    networks:
+      - gin-net
+    volumes:
+      - postgres-data:/var/lib/postgresql/data:cached
+    restart: always
+
+  # dbPathとvolumnsが完全一致する必要がある
+  # この設定では「./containers/dynamodb/data」部分
+  dynamodb:
+    image: amazon/dynamodb-local:latest
+    networks:
+      - gin-net
+    command: -jar DynamoDBLocal.jar -port 8000 -dbPath dynamodb-data -sharedDb
+    volumes:
+      - dynamodb-data:/home/dynamodblocal/containers/dynamodb/data
+    ports:
+      - 8000:8000
+
+  server:
+    build:
+      context: .
+    command: bash -c "gin -i run"
+    # command: bash -c "go run main.go"
+    # # line debug
+    # command: bash -c "go build -gcflags \"all=-N -l\" main.go && dlv --headless=true --listen=:3000 --api-version=2 --accept-multiclient exec ./main"
+    environment:
+      TZ: Asia/Tokyo
+    networks:
+      - gin-net
+    ports:
+      - 3000:3000
+    volumes:
+      - .:/go:cached
+    depends_on:
+      - postgres
+      - dynamodb
+    privileged: true
+    security_opt:
+      - apparmor:unconfined
+    cap_add:
+      - SYS_PTRACE
+    restart: always
+
+networks:
+  gin-net:
+volumes:
+  postgres-data:
+  dynamodb-data:
